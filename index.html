@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>音樂家圖書館 - 音樂互動網站</title>
+    <script src="data.js"></script>
+    <script>
+        function showPeriod(period) {
+            // 這時候就能讀到 data.js 裡的變數了
+            console.log(composerData); 
+        }
+    </script>
+    <style>
+        body { font-family: 'Microsoft JhengHei', sans-serif; background: #f4e7d3; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; text-align: center; }
+        h1 { color: #5d4037; border-bottom: 2px solid #5d4037; padding-bottom: 10px; }
+        
+        /* 時期切換按鈕 */
+        .tabs { margin-bottom: 30px; }
+        .tab-btn { padding: 12px 25px; font-size: 18px; cursor: pointer; border: none; background: #d7ccc8; margin: 0 5px; transition: 0.3s; border-radius: 5px; }
+        .tab-btn.active { background: #5d4037; color: white; }
+        
+        /* 音樂家清單排版 */
+        .composer-list { display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; }
+        .card { background: white; border: 1px solid #ddd; padding: 15px; width: 200px; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .card:hover { transform: translateY(-10px); box-shadow: 0 10px 15px rgba(0,0,0,0.2); }
+        .card img { width: 100%; border-radius: 5px; }
+        .card h3 { margin: 10px 0 5px; font-size: 18px; }
+        
+        /* 彈出視窗 (Modal) */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 30px; max-width: 500px; width: 90%; position: relative; border-radius: 10px; text-align: left; }
+        .close-btn { position: absolute; top: 10px; right: 20px; font-size: 30px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏛️ 音樂家圖書館</h1>
+    
+    <div class="tabs">
+        <button class="tab-btn" onclick="showPeriod('baroque')">巴洛克時期</button>
+        <button class="tab-btn" onclick="showPeriod('classical')">古典時期</button>
+        <button class="tab-btn" onclick="showPeriod('romantic')">浪漫時期</button>
+    </div>
+
+    <div id="composer-display" class="composer-list">
+        請選擇一個時期了解音樂家
+    </div>
+</div>
+
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <h2 id="modal-name"></h2>
+        <h4 id="modal-title" style="color: #795548;"></h4>
+        <p><strong>生平簡介：</strong></p>
+        <p id="modal-bio"></p>
+        <p><strong>著名作品 (點擊即可試聽)：</strong></p>
+        <ul id="modal-works"></ul>
+        <div id="modal-works-container"></div> 
+        <audio id="hidden-audio"></audio>
+    </div>
+    </div>
+</div>
+
+<script>
+    // 這裡放入上面提供的 composerData 資料
+    // const composerData = { ... }; (為了縮短篇幅，實際執行請貼上完整 JSON)
+
+    function showPeriod(period) {
+        // 更新按鈕樣式
+        const btns = document.querySelectorAll('.tab-btn');
+        btns.forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        const list = document.getElementById('composer-display');
+        list.innerHTML = ''; // 清空內容
+
+        composerData[period].forEach(composer => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.onclick = () => openModal(composer);
+            card.innerHTML = `
+                <img src="${composer.img}" alt="${composer.name}">
+                <h3>${composer.name}</h3>
+                <p>${composer.title}</p>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    let currentPlayingIndex = null;
+    function openModal(composer) {
+        document.getElementById('modal-name').innerText = composer.name;
+        document.getElementById('modal-title').innerText = composer.title;
+        document.getElementById('modal-bio').innerText = composer.bio;
+        const container = document.getElementById('modal-works-container');
+        container.innerHTML = ''; // 清空舊內容
+        currentPlayingIndex = null; // 每次打開新視窗時重置播放狀態
+
+        // 動態生成作品按鈕
+        composer.works.forEach((workName, index) => {
+            const workItem = document.createElement('div');
+            workItem.style.cssText = "cursor:pointer; color:#5d4037; padding:10px; margin:5px 0; background:#f0f0f0; border-radius:5px; border-left: 5px solid #5d4037; transition: 0.2s;";
+            workItem.innerHTML = `🎵 ${workName}`;
+        
+            // 滑鼠移入效果
+            workItem.onmouseover = () => workItem.style.background = "#d7ccc8";
+            workItem.onmouseout = () => workItem.style.background = "#f0f0f0";
+
+            // 點擊作品播放音樂
+            workItem.onclick = () => {
+                const player = document.getElementById('hidden-audio');
+            
+                // 邏輯：如果點的是同一首
+                if (currentPlayingIndex === index) {
+                    if (!player.paused) {
+                        player.pause();
+                        workItem.innerHTML = `▶ ${workName} (已暫停)`;
+                    } else {
+                    player.play();
+                    workItem.innerHTML = `⏸ ${workName} (播放中)`;
+                    }
+                } else {
+                    // 邏輯：點的是不同首
+                    player.src = composer.audio[index];
+                    player.play().catch(e => console.log("播放被阻擋"));
+                
+                    // 把所有按鈕重置成「未播放」的狀態
+                    const allItems = container.querySelectorAll('div');
+                        allItems.forEach((div, i) => {
+                        div.innerHTML = `▶ ${composer.works[i]}`;
+                        div.style.background = "#f0f0f0";
+                    });
+
+                    // 設定現在這首的狀態
+                    workItem.innerHTML = `⏸ ${workName} (播放中)`;
+                    workItem.style.background = "#d7ccc8";
+                    currentPlayingIndex = index;
+                }
+            };
+            container.appendChild(workItem);
+        });
+
+        document.getElementById('modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        const player = document.getElementById('hidden-audio');
+        if (player) {
+            player.pause();
+            player.currentTime = 0;
+        }
+        document.getElementById('modal').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
